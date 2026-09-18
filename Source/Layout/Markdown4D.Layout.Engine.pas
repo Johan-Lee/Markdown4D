@@ -80,12 +80,16 @@ type
     Source: string;
     AltText: string;
     CodeSpan: Boolean;
+    Highlighted: Boolean; // 추가
+    HighlightBackground: TLayoutColor; // 추가
   end;
 
   TInlineStyle = record
     Font: TMarkdownFontStyle;
     Color: TLayoutColor;
     Attribution: IMarkdownNode;
+    Highlighted: Boolean; // 추가
+    HighlightBackground: TLayoutColor; // 추가
   end;
 
   TInlineFrame = record
@@ -122,6 +126,8 @@ type
       FGroupNode: IMarkdownNode;
       FGroupStartOffset: Integer;
       FGroupCodeSpan: Boolean;
+      FGroupHighlighted: Boolean; // 추가
+      FGroupHighlightBackground: TLayoutColor; // 추가
     procedure AddWordLike(const Atom: TInlineAtom);
     procedure ForceBreakWord(const Atom: TInlineAtom);
     function MaxCharsFitting(const Text: string; const Font: TMarkdownFontStyle): Integer;
@@ -136,6 +142,7 @@ type
     procedure AppendToGroup(const Atom: TInlineAtom);
     procedure CloseGroup;
     procedure EmitCodeSpanChip(const RunBounds: TLayoutRectF);
+    procedure EmitHighlightChip(const RunBounds: TLayoutRectF); // 추가
     function SameRunStyle(const Atom: TInlineAtom): Boolean;
     procedure EmitImageItem(const Atom: TInlineAtom);
     procedure EmitMathItem(const Atom: TInlineAtom);
@@ -1477,10 +1484,11 @@ begin
     Atom.Text := Token;
     Atom.Font := Style.Font;
     Atom.Color := Style.Color;
+    Atom.Highlighted := Style.Highlighted; // 추가
+    Atom.HighlightBackground := Style.HighlightBackground; // 추가
     Atom.Node := Attribution;
     Atom.StartOffset := Start - 1;
     Atom.Width := FMeasurer.MeasureText(Token, Style.Font).Width;
-
     Atoms.Add(Atom);
   end;
 end;
@@ -1587,6 +1595,17 @@ begin
   // (see TLayoutWorker.EmitTaskCheckbox); a task marker contributes no inline content.
   if IsCheckedTask or IsUncheckedTask then
     Exit;
+
+  const IsHighlight = (Custom.NodeName = 'mark'); // TMarkExtension이 만드는 NodeName
+  if IsHighlight then
+  begin
+    var MarkStyle := Style;
+    MarkStyle.Highlighted := True;
+    MarkStyle.HighlightBackground := FTheme.HighlightBackgroundColor;
+    MarkStyle.Color := FTheme.HighlightTextColor; // 글자색도 여기서 변경
+    PushStyledFrame(Frames, Child, MarkStyle);
+    Exit;
+  end;
 
   const IsStrikethrough = (Custom.NodeName = TGfmInlineParser.StrikethroughNodeName);
   if not IsStrikethrough then
@@ -1980,6 +1999,8 @@ begin
   FGroupNode := Atom.Node;
   FGroupStartOffset := Atom.StartOffset;
   FGroupCodeSpan := Atom.CodeSpan;
+  FGroupHighlighted := Atom.Highlighted; // 추가
+  FGroupHighlightBackground := Atom.HighlightBackground; // 추가
 end;
 
 procedure TInlineWrapper.AppendToGroup(const Atom: TInlineAtom);
@@ -1999,7 +2020,9 @@ begin
   const Bounds = TLayoutRectF.Create(FCursor, Top, FCursor + FGroupWidth, Top + RunHeight);
 
   if FGroupCodeSpan then
-    EmitCodeSpanChip(Bounds);
+    EmitCodeSpanChip(Bounds)
+  else if FGroupHighlighted then
+    EmitHighlightChip(Bounds); // 조건 추가
 
   FItems.Add(TDisplayTextRun.Create(Bounds, FGroupNode, FGroupText, FGroupFont, FGroupColor, RunBaseline,
     FGroupStartOffset));
@@ -2016,10 +2039,16 @@ begin
   FItems.Add(TDisplayRectangle.Create(ChipBounds, FGroupNode, FCodeSpanBackground, 0, 0));
 end;
 
+procedure TInlineWrapper.EmitHighlightChip(const RunBounds: TLayoutRectF);
+begin
+  // 배경 사각형을 코드 칩처럼 그리되, 하이라이트 색을 사용
+  FItems.Add(TDisplayRectangle.Create(RunBounds, FGroupNode, FGroupHighlightBackground, 0, 0));
+end;
+
 function TInlineWrapper.SameRunStyle(const Atom: TInlineAtom): Boolean;
 begin
   Result := FGroupFont.Equals(Atom.Font) and (FGroupColor = Atom.Color) and (FGroupNode = Atom.Node) and
-    (FGroupCodeSpan = Atom.CodeSpan);
+    (FGroupCodeSpan = Atom.CodeSpan) and (FGroupHighlighted = Atom.Highlighted); // 형광펜/일반 텍스트가 같은 런으로 묶이지 않도록 조건 추가
 end;
 
 function TMarkdownFontStyleHelper.Equals(const Other: TMarkdownFontStyle): Boolean;
