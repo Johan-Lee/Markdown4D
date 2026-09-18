@@ -8,6 +8,7 @@
 
 ```html
 ==형광펜==
+
 <font color="#FF0000">빨강</font>
 <font color="#0078D7">파랑</font>
 <font color="yellow">노랑</font>
@@ -28,28 +29,54 @@
 
 # Markdown4D
 
-Markdown4D is a CommonMark / GFM markdown library written in Delphi. It parses markdown into a typed AST, renders HTML, writes markdown back out, and ships custom-drawn viewer and editor components for VCL and FMX. Everything is plain Object Pascal on top of the RTL; rendering happens on a canvas, without an embedded browser.
+Markdown4D is a CommonMark / GFM markdown library written in Delphi. It parses
+markdown into a typed AST, renders HTML, writes markdown back out, and ships
+custom-drawn viewer and editor components for VCL and FMX. Everything is plain
+Object Pascal on top of the RTL; rendering happens on a canvas, without an
+embedded browser.
 
-<!-- badges --> [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)[![Latest release](https://img.shields.io/github/v/release/GDKsoftware/Markdown4D?label=release&color=blue)](https://github.com/GDKsoftware/Markdown4D/releases)[![Delphi 12+](https://img.shields.io/badge/Delphi-12%2B-e62329.svg)](https://www.embarcadero.com/products/delphi)[![CommonMark 0.31.2](https://img.shields.io/badge/CommonMark-0.31.2%20652%2F652-1f6feb.svg)](https://spec.commonmark.org/0.31.2/)
+<!-- badges -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/GDKsoftware/Markdown4D?label=release&color=blue)](https://github.com/GDKsoftware/Markdown4D/releases)
+[![Delphi 12+](https://img.shields.io/badge/Delphi-12%2B-e62329.svg)](https://www.embarcadero.com/products/delphi)
+[![CommonMark 0.31.2](https://img.shields.io/badge/CommonMark-0.31.2%20652%2F652-1f6feb.svg)](https://spec.commonmark.org/0.31.2/)
 
 <p align="center">
   <img src="docs/images/studio-light.png" alt="Markdown4D Studio in the light theme, markdown source on the left and a rendered report with a table and a bar chart on the right" width="49%">
   <img src="docs/images/studio-dark.png" alt="Markdown4D Studio in the dark theme, showing a mermaid flowchart, syntax-highlighted Pascal, a task list and a block quote" width="49%">
 </p>
 
-*Markdown4D Studio, the editor example, in the light and the dark theme. Source on the left,* `TMarkdownEditor`*; rendered document on the right,* `TMarkdownViewer`*. The table, the bar chart, the flowchart and the highlighted code are all drawn on the canvas from the markdown you see next to them.*
+*Markdown4D Studio, the editor example, in the light and the dark theme. Source
+on the left, `TMarkdownEditor`; rendered document on the right,
+`TMarkdownViewer`. The table, the bar chart, the flowchart and the highlighted
+code are all drawn on the canvas from the markdown you see next to them.*
 
 ## Why Markdown4D
 
-Markdown is a handy way to give plain text a visual shape, and Delphi had no component that rendered it well, at runtime or on the form designer. So we built one, starting from a parser rather than a shortcut: Markdown4D passes all 652 official CommonMark examples, and the library is interface-based throughout, handing you a typed `IMarkdownDocument` rather than a string of HTML.
+Markdown is a handy way to give plain text a visual shape, and Delphi had no
+component that rendered it well, at runtime or on the form designer. So we
+built one, starting from a parser rather than a shortcut: Markdown4D passes
+all 652 official CommonMark examples, and the library is interface-based
+throughout, handing you a typed `IMarkdownDocument` rather than a string of
+HTML.
 
-VCL and FMX are both supported, with no external dependencies. Charts, mermaid diagrams and LaTeX formulas are drawn natively, alongside the usual markdown constructs: tables, task lists, links, raw HTML.
+VCL and FMX are both supported, with no external dependencies. Charts, mermaid
+diagrams and LaTeX formulas are drawn natively, alongside the usual markdown
+constructs: tables, task lists, links, raw HTML.
 
-The pipeline builder accepts inline and block syntax of your own. The renderer turns a document into HTML, the writer turns it back into markdown, so a round trip through the tree gets you clean markdown out the other end. And it streams, if that is what you need.
+The pipeline builder accepts inline and block syntax of your own. The renderer
+turns a document into HTML, the writer turns it back into markdown, so a round
+trip through the tree gets you clean markdown out the other end. And it
+streams, if that is what you need.
 
-An incremental parser reparses only the region that changed. That is what makes streaming practical: a log that grows, an import reporting as it runs, a model answering a token at a time. It is also what keeps an editor responsive on a large document.
+An incremental parser reparses only the region that changed. That is what
+makes streaming practical: a log that grows, an import reporting as it runs, a
+model answering a token at a time. It is also what keeps an editor responsive
+on a large document.
 
-Everything under `Source\` was written for this project and uses only the RTL: no DLL of its own, no package manager involved. Delphi 12 Athens and Delphi 13, MIT licensed.
+Everything under `Source\` was written for this project and uses only the RTL:
+no DLL of its own, no package manager involved. Delphi 12 Athens and Delphi
+13, MIT licensed.
 
 ## Features
 
@@ -65,7 +92,8 @@ Everything under `Source\` was written for this project and uses only the RTL: n
 | Raw HTML in the viewer | The allowed subset renders through the ordinary path; `<script>` and `<style>` are dropped with their content |
 | Extension API | Block/inline parsers, delimiter processors, renderer hooks, document processors, block overrides |
 
-The document builder, the table of contents, the HTML renderer's safety modes and the SVG engine are documented in [docs/API.md](docs/API.md).
+The document builder, the table of contents, the HTML renderer's safety modes
+and the SVG engine are documented in [docs/API.md](docs/API.md).
 
 ## Quick start
 
@@ -78,7 +106,9 @@ uses
 const Html = TMarkdown.ToHtml('# Hello *world*');
 ```
 
-`ToHtml` renders safely: raw HTML is omitted and scripting destinations such as `javascript:` are emptied. For byte-for-byte specification output on input you trust, use `TMarkdown.ToUnsafeHtml`.
+`ToHtml` renders safely: raw HTML is omitted and scripting destinations such as
+`javascript:` are emptied. For byte-for-byte specification output on input you
+trust, use `TMarkdown.ToUnsafeHtml`.
 
 A configured pipeline (GFM, raw HTML allowed):
 
@@ -108,7 +138,8 @@ Viewer.ThemePreset := TMarkdownThemePreset.Dark;
 Viewer.Text := '# Welcome'#10#10 + 'This is **Markdown4D**.';
 ```
 
-Text that arrives in pieces. The viewer reparses incrementally, debounces relayout and follows the tail:
+Text that arrives in pieces. The viewer reparses incrementally, debounces
+relayout and follows the tail:
 
 ```pascal
 procedure TReportForm.OnChunkReceived(const Chunk: string);
@@ -117,19 +148,27 @@ begin
 end;
 ```
 
-A chunk may split a word, a `**bold**` span, a fenced block or a table row; the incremental parser reconciles it when the next chunk completes it. That covers a log that grows, an import that reports as it runs, a document assembled on the fly, and a model that answers token by token.
+A chunk may split a word, a `**bold**` span, a fenced block or a table row; the
+incremental parser reconciles it when the next chunk completes it. That covers a
+log that grows, an import that reports as it runs, a document assembled on the
+fly, and a model that answers token by token.
 
-`AppendMarkdown` is safe to call from a worker thread; it marshals to the UI thread for you. See [docs/STREAMING.md](docs/STREAMING.md).
+`AppendMarkdown` is safe to call from a worker thread; it marshals to the UI
+thread for you. See [docs/STREAMING.md](docs/STREAMING.md).
 
 <p align="center">
   <img src="docs/images/streaming-demo.gif" alt="Markdown4D Studio with the markdown source on the left and the live preview on the right, text arriving a chunk at a time while a table, a native bar chart and a mermaid flowchart take shape" width="90%">
 </p>
 
-*The same thing running: source on the left, live preview on the right, text arriving a chunk at a time. The chart and the diagram appear as their fences close. Nothing here is a browser, and the animation itself is rendered by the library through* `tools\Make-Demo.ps1` *rather than captured off a screen.*
+*The same thing running: source on the left, live preview on the right, text
+arriving a chunk at a time. The chart and the diagram appear as their fences
+close. Nothing here is a browser, and the animation itself is rendered by the
+library through `tools\Make-Demo.ps1` rather than captured off a screen.*
 
 ## Installation
 
-Markdown4D ships as source, all of it, under the MIT licence. Add these folders to your project:
+Markdown4D ships as source, all of it, under the MIT licence. Add these folders
+to your project:
 
 ```
 Source\Core     framework-neutral parser, AST, renderer, writer, extensions
@@ -141,7 +180,9 @@ Source\Fmx      FMX painter, viewer, editor
 
 If you only render to HTML, `Source\Core` is all you need.
 
-For the design-time components, build the packages in `packages\` and install the two design packages in the IDE. The full instructions are in [packages/INSTALL.md](packages/INSTALL.md).
+For the design-time components, build the packages in `packages\` and install
+the two design packages in the IDE. The full instructions are in
+[packages/INSTALL.md](packages/INSTALL.md).
 
 ## Examples
 
@@ -156,7 +197,8 @@ The `Examples\` folder contains four runnable projects:
 
 ## Architecture
 
-Markdown4D is strictly layered. `Core` and `Layout` are framework-neutral; only the outermost layer knows about VCL or FMX.
+Markdown4D is strictly layered. `Core` and `Layout` are framework-neutral; only
+the outermost layer knows about VCL or FMX.
 
 ```
              +----------------------+      +----------------------+
@@ -183,14 +225,16 @@ Markdown4D is strictly layered. `Core` and `Layout` are framework-neutral; only 
                   +-------------------------------------------+
 ```
 
-A single string of markdown flows through `source ??pipeline ??AST ??(HTML renderer | markdown writer | layout engine ??display list ??painter)`.
+A single string of markdown flows through
+`source → pipeline → AST → (HTML renderer | markdown writer | layout engine → display list → painter)`.
 
 ## Conformance dashboard
 
-The suite runs the CommonMark and GFM specification corpora plus round-trip and incremental parsing corpora on every build. The table below is regenerated by `build.bat`.
+The suite runs the CommonMark and GFM specification corpora plus round-trip and
+incremental parsing corpora on every build. The table below is regenerated by
+`build.bat`.
 
 <!-- conformance:start -->
-
 | Corpus | Test cases | Passed | Pass rate |
 |--------|-----------:|-------:|----------:|
 | CommonMark | 26 | 26 | 100.0% |
@@ -201,7 +245,10 @@ The suite runs the CommonMark and GFM specification corpora plus round-trip and 
 | **Total** | **144** | **144** | **100.0%** |
 <!-- conformance:end -->
 
-A test case runs a group of specification examples rather than a single one, so the counts above are groups. The CommonMark corpus behind them covers all 652 official examples of version 0.31.2, the GFM corpus covers the extension examples, and the math corpus covers the `$` syntax.
+A test case runs a group of specification examples rather than a single one, so
+the counts above are groups. The CommonMark corpus behind them covers all 652
+official examples of version 0.31.2, the GFM corpus covers the extension
+examples, and the math corpus covers the `$` syntax.
 
 ## Building & testing
 
@@ -211,26 +258,49 @@ Run the build script from the repository root:
 build.bat
 ```
 
-It compiles and runs the DUnitX main and FMX test suites, builds every example and every package, and regenerates the conformance dashboard above.
+It compiles and runs the DUnitX main and FMX test suites, builds every example
+and every package, and regenerates the conformance dashboard above.
 
 ## Documentation
 
-- [docs/API.md](docs/API.md) covers the public surface: facade, pipeline, AST, builder, TOC, theme, math, and the viewer and editor components.
-- [docs/EXTENSIONS.md](docs/EXTENSIONS.md) explains how to write extensions: the `==mark==` parser extension, an admonition custom-rendering walkthrough on the `IExtensionCanvas`, and the bundled chart and mermaid extensions.
-- [docs/STREAMING.md](docs/STREAMING.md) is the streaming integration guide: `AppendMarkdown`, debounce, threading, charts and `Text` semantics.
-- [packages/INSTALL.md](packages/INSTALL.md) describes the package build and the IDE install.
+- [docs/API.md](docs/API.md) covers the public surface: facade, pipeline, AST,
+  builder, TOC, theme, math, and the viewer and editor components.
+- [docs/EXTENSIONS.md](docs/EXTENSIONS.md) explains how to write extensions:
+  the `==mark==` parser extension, an admonition custom-rendering walkthrough
+  on the `IExtensionCanvas`, and the bundled chart and mermaid extensions.
+- [docs/STREAMING.md](docs/STREAMING.md) is the streaming integration guide:
+  `AppendMarkdown`, debounce, threading, charts and `Text` semantics.
+- [packages/INSTALL.md](packages/INSTALL.md) describes the package build and
+  the IDE install.
 
 ## Third-party code
 
-No third-party code. Every line under `Source\` is written for this project, including the anti-aliased polygon rasterizer, the SVG engine and the formula layout engine behind the viewers.
+No third-party code. Every line under `Source\` is written for this project,
+including the anti-aliased polygon rasterizer, the SVG engine and the formula
+layout engine behind the viewers.
 
-One font travels with it. `Source\Fonts\STIXTwoMath-Regular.otf` is STIX Two Math by the STIX Fonts project, under the SIL Open Font License 1.1 (`Source\Fonts\OFL.txt`). The VCL and FMX packages compile it in as a resource; an application installs it for its own process by adding `Markdown4D.Vcl.MathFont` or `Markdown4D.Fmx.MathFont` to a uses clause, as the examples do. Leave that unit out and formulas use the math font the platform ships with, Cambria Math on Windows and STIX Two Math on macOS.
+One font travels with it. `Source\Fonts\STIXTwoMath-Regular.otf` is STIX Two
+Math by the STIX Fonts project, under the SIL Open Font License 1.1
+(`Source\Fonts\OFL.txt`). The VCL and FMX packages compile it in as a resource;
+an application installs it for its own process by adding
+`Markdown4D.Vcl.MathFont` or `Markdown4D.Fmx.MathFont` to a uses clause, as the
+examples do. Leave that unit out and formulas use the math font the platform
+ships with, Cambria Math on Windows and STIX Two Math on macOS.
 
-Two things an SVG needs from the machine it runs on, glyph outlines and image decoding, are reached through seams. The system font engine and the VCL picture classes answer them on Windows, and FMX answers them everywhere it runs, so the library itself adds nothing to what you deploy.
+Two things an SVG needs from the machine it runs on, glyph outlines and image
+decoding, are reached through seams. The system font engine and the VCL picture
+classes answer them on Windows, and FMX answers them everywhere it runs, so the
+library itself adds nothing to what you deploy.
 
-One footnote, because it is visible in the build output: the FMX examples set `GlobalUseSkia := True`, which switches FireMonkey to its Skia canvas for accurate text metrics in the editor and brings `sk4d.dll` along. That is a choice of those examples, not a requirement of Markdown4D. The VCL examples ship as a single executable.
+One footnote, because it is visible in the build output: the FMX examples set
+`GlobalUseSkia := True`, which switches FireMonkey to its Skia canvas for
+accurate text metrics in the editor and brings `sk4d.dll` along. That is a
+choice of those examples, not a requirement of Markdown4D. The VCL examples ship
+as a single executable.
 
-The specification corpora under `Tests\specs` come from the CommonMark and GFM specifications; see [Tests/specs/README.md](Tests/specs/README.md) for their origin and licence.
+The specification corpora under `Tests\specs` come from the CommonMark and GFM
+specifications; see [Tests/specs/README.md](Tests/specs/README.md) for their
+origin and licence.
 
 ## License
 
@@ -240,8 +310,14 @@ Copyright (c) 2026 GDK Software
 
 ## Commercial Support
 
-Markdown4D is MIT licensed, so it is free to use. For companies we offer a support and maintenance contract, including sponsored development of the features you need. Get in touch at [gdksoftware.com/contact-us](https://gdksoftware.com/contact-us), or open an issue.
+Markdown4D is MIT licensed, so it is free to use. For companies we offer a
+support and maintenance contract, including sponsored development of the
+features you need. Get in touch at
+[gdksoftware.com/contact-us](https://gdksoftware.com/contact-us), or open an
+issue.
 
 ## About GDK Software
 
-Markdown4D is developed by [GDK Software](https://gdksoftware.com), a software company building Delphi developer tools, MCP integrations, and enterprise Delphi applications.
+Markdown4D is developed by [GDK Software](https://gdksoftware.com), a software
+company building Delphi developer tools, MCP integrations, and enterprise
+Delphi applications.
