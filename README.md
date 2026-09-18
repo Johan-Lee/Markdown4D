@@ -24,6 +24,13 @@
 
 <span style="color:blue"><u>파란색이면서 밑줄</u></span>도 됩니다.
 ```
+```pascal
+// 형광펜 색상은 런타임에서 아래와 같이 변경할 수 있습니다.
+
+MarkdownViewer1.Theme.HighlightBackgroundColor := $FF90EE90; // 연두색 배경으로 변경
+MarkdownViewer1.Theme.HighlightTextColor := $FF000000; // 글자는 검정으로
+MarkdownViewer1.Invalidate; // 또는 Refresh/Reflow 계열 메서드로 재레이아웃
+```
 
 >Thanks to **GDKsoftware** for releasing such an excellent library.
 
