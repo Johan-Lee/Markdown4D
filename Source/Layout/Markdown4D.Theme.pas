@@ -187,8 +187,8 @@ type
       FChartTextColor: TLayoutColor;
       FChartPalette: TArray<TLayoutColor>;
       FTokenColors: TTokenColorArray;
-      FHighlightBackgroundColor: TLayoutColor; // [형광펜] 추가
-      FHighlightTextColor: TLayoutColor; // [형광펜] 추가
+      FHighlightBackgroundColor: TLayoutColor; // [확장] 추가
+      FHighlightTextColor: TLayoutColor; // [확장] 추가
     class function PaletteFrom(const Colors: array of TLayoutColor): TArray<TLayoutColor>;
     function HeadingFontsToJson: TJSONArray;
     class function SpacingsToJson(const Spacings: THeadingSpacingArray): TJSONArray;
@@ -302,8 +302,8 @@ class function TMarkdownTheme.CreateDark: TMarkdownTheme;
 begin
   Result := TMarkdownTheme.Create;
 
-  Result.FHighlightBackgroundColor := $FF6B5B10; // [형광펜] 어두운 금색 계열
-  Result.FHighlightTextColor := $FFFFF3A0; // [형광펜] 옅은 노란색
+  Result.FHighlightBackgroundColor := $FF6B5B10; // [확장] 어두운 금색 계열
+  Result.FHighlightTextColor := $FFFFF3A0; // [확장] 옅은 노란색
   Result.FTextColor := DarkInkColor;
   Result.FBackgroundColor := DarkBackgroundColor;
   Result.FLinkColor := $FF4493F8;
@@ -330,8 +330,8 @@ begin
   FBaseFont := TMarkdownFontStyle.Create(DefaultTextFamilyName, DefaultBaseFontSize);
   FCodeFont := TMarkdownFontStyle.Create(DefaultCodeFamilyName, DefaultBaseFontSize);
   FMathFont := TMarkdownFontStyle.Create(DefaultMathFamilyName, DefaultBaseFontSize);
-  FHighlightBackgroundColor := $FFFFF3A0; // [형광펜] 옅은 노란색
-  FHighlightTextColor := LightInkColor; // [형광펜] 기존 글자색 유지
+  FHighlightBackgroundColor := $FFFFF3A0; // [확장] 옅은 노란색
+  FHighlightTextColor := LightInkColor; // [확장] 기존 글자색 유지
 
   for var Level := MinHeadingLevel to MaxHeadingLevel do
   begin
