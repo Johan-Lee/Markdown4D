@@ -5,6 +5,7 @@ unit Markdown4D.Layout.Engine;
 interface
 
 uses
+  Winapi.Windows,
   Markdown4D.Ast.Interfaces,
   Markdown4D.Layout.Interfaces,
   Markdown4D.Layout.DisplayList,
@@ -57,18 +58,6 @@ const
   DisplayMathMarker = '$$';
 
 type
-  // [색상태그] 추가
-  TInlineHtmlColorTag = record
-  public
-    class function TryParseOpenColor(const Tag: string; out Color: TLayoutColor): Boolean; static;
-    class function IsCloseTag(const Tag: string): Boolean; static;
-  private
-    class function TagName(const Tag: string): string; static;
-    class function ExtractAttribute(const Tag, AttrName: string): string; static;
-    class function ExtractStyleColor(const Style: string): string; static;
-    class function TryColorFromCss(const Value: string; out Color: TLayoutColor): Boolean; static;
-  end;
-
   TMarkdownFontStyleHelper = record helper for TMarkdownFontStyle
     function Equals(const Other: TMarkdownFontStyle): Boolean;
   end;
@@ -94,6 +83,18 @@ type
     CodeSpan: Boolean;
     Highlighted: Boolean; // [형광펜] 추가
     HighlightBackground: TLayoutColor; // [형광펜] 추가
+  end;
+
+  // [색상태그] 추가
+  TInlineHtmlColorTag = record
+  public
+    class function TryParseOpenColor(const Tag: string; out Color: TLayoutColor): Boolean; static;
+    class function IsCloseTag(const Tag: string): Boolean; static;
+  private
+    class function TagName(const Tag: string): string; static;
+    class function ExtractAttribute(const Tag, AttrName: string): string; static;
+    class function ExtractStyleColor(const Style: string): string; static;
+    class function TryColorFromCss(const Value: string; out Color: TLayoutColor): Boolean; static;
   end;
 
   TInlineStyle = record
@@ -1423,6 +1424,7 @@ begin
         HandleInlineChild(Result, Frames, ColorStack, Child, Frame.Style); // [색상태그] ColorStack 전달
       end;
     finally
+      ColorStack.Free; // [색상태그] 추가
       Frames.Free;
     end;
   except
@@ -1488,6 +1490,8 @@ begin
 
   if TInlineHtmlColorTag.TryParseOpenColor(Html, Color) then
   begin
+    OutputDebugString(PChar(Format('open color parsed: %x from "%s"', [Color, Html])));
+
     // 지금 이 컨테이너(문단)를 순회 중인 프레임의 색을 바꿔치기한다.
     // 이후 형제 노드들은 모두 이 색으로 그려진다.
     Frame := Frames[Frames.Count - 1];
@@ -2162,11 +2166,13 @@ begin
   I := 1;
   while (I <= Length(S)) and not CharInSet(S[I], [' ', #9, '>', '/']) do
     Inc(I);
+
+  Result := Copy(S, 1, I - 1).ToLower;
 end;
 
 class function TInlineHtmlColorTag.IsCloseTag(const Tag: string): Boolean;
 begin
-  const Name = TagName(Tag);
+  const Name = TagName(Tag).ToLower;
   Result := Tag.Trim.StartsWith('</') and ((Name = 'span') or (Name = 'font'));
 end;
 
@@ -2284,10 +2290,10 @@ begin
     Exit;
 
   Name := TagName(Tag);
-  if (Name <> 'span') and (Name <> 'font') then
+  if (Name.ToLower <> 'span') and (Name.ToLower <> 'font') then
     Exit;
 
-  if Name = 'font' then
+  if Name.ToLower = 'font' then
   begin
     ColorValue := ExtractAttribute(Tag, 'color');
     if (ColorValue <> '') and TryColorFromCss(ColorValue, Color) then
