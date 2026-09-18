@@ -187,8 +187,8 @@ type
       FChartTextColor: TLayoutColor;
       FChartPalette: TArray<TLayoutColor>;
       FTokenColors: TTokenColorArray;
-      FHighlightBackgroundColor: TLayoutColor; // Ãß°¡
-      FHighlightTextColor: TLayoutColor; // Ãß°¡
+      FHighlightBackgroundColor: TLayoutColor; // [Çü±¤Ææ] Ãß°¡
+      FHighlightTextColor: TLayoutColor; // [Çü±¤Ææ] Ãß°¡
     class function PaletteFrom(const Colors: array of TLayoutColor): TArray<TLayoutColor>;
     function HeadingFontsToJson: TJSONArray;
     class function SpacingsToJson(const Spacings: THeadingSpacingArray): TJSONArray;
@@ -302,8 +302,8 @@ class function TMarkdownTheme.CreateDark: TMarkdownTheme;
 begin
   Result := TMarkdownTheme.Create;
 
-  Result.FHighlightBackgroundColor := $FF6B5B10; // ¾îµÎ¿î ±Ý»ö °è¿­
-  Result.FHighlightTextColor := $FFFFF3A0; // ¿¶Àº ³ë¶õ»ö
+  Result.FHighlightBackgroundColor := $FF6B5B10; // [Çü±¤Ææ] ¾îµÎ¿î ±Ý»ö °è¿­
+  Result.FHighlightTextColor := $FFFFF3A0; // [Çü±¤Ææ] ¿¶Àº ³ë¶õ»ö
   Result.FTextColor := DarkInkColor;
   Result.FBackgroundColor := DarkBackgroundColor;
   Result.FLinkColor := $FF4493F8;
@@ -330,8 +330,8 @@ begin
   FBaseFont := TMarkdownFontStyle.Create(DefaultTextFamilyName, DefaultBaseFontSize);
   FCodeFont := TMarkdownFontStyle.Create(DefaultCodeFamilyName, DefaultBaseFontSize);
   FMathFont := TMarkdownFontStyle.Create(DefaultMathFamilyName, DefaultBaseFontSize);
-  FHighlightBackgroundColor := $FFFFF3A0; // ¿¶Àº ³ë¶õ»ö
-  FHighlightTextColor := LightInkColor; // ±âÁ¸ ±ÛÀÚ»ö À¯Áö
+  FHighlightBackgroundColor := $FFFFF3A0; // [Çü±¤Ææ] ¿¶Àº ³ë¶õ»ö
+  FHighlightTextColor := LightInkColor; // [Çü±¤Ææ] ±âÁ¸ ±ÛÀÚ»ö À¯Áö
 
   for var Level := MinHeadingLevel to MaxHeadingLevel do
   begin

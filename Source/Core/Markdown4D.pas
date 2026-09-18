@@ -47,7 +47,7 @@ implementation
 uses
   Markdown4D.Version,
   Markdown4D.Pipeline,
-  Markdown4D.Extensions.Sample, // TMarkExtension을 쓰기 위해 추가
+  Markdown4D.Extensions.Sample, // [형광펜] TMarkExtension을 쓰기 위해 추가
   Markdown4D.Parser.Incremental,
   Markdown4D.Writer.Markdown;
 
@@ -113,7 +113,7 @@ begin
 
   const IsGfmDialect = (Dialect = TMarkdownDialect.Gfm);
   if IsGfmDialect then
-    Builder := Builder.UseGfm.Use(TMarkExtension.Create); // ==형광펜== 지원 추가
+    Builder := Builder.UseGfm.Use(TMarkExtension.Create); // [형광펜] 지원 추가
 
   const IsUnsafe = (Mode = TRenderMode.Unsafe);
   if IsUnsafe then

@@ -57,6 +57,18 @@ const
   DisplayMathMarker = '$$';
 
 type
+  // [색상태그] 추가
+  TInlineHtmlColorTag = record
+  public
+    class function TryParseOpenColor(const Tag: string; out Color: TLayoutColor): Boolean; static;
+    class function IsCloseTag(const Tag: string): Boolean; static;
+  private
+    class function TagName(const Tag: string): string; static;
+    class function ExtractAttribute(const Tag, AttrName: string): string; static;
+    class function ExtractStyleColor(const Style: string): string; static;
+    class function TryColorFromCss(const Value: string; out Color: TLayoutColor): Boolean; static;
+  end;
+
   TMarkdownFontStyleHelper = record helper for TMarkdownFontStyle
     function Equals(const Other: TMarkdownFontStyle): Boolean;
   end;
@@ -80,16 +92,16 @@ type
     Source: string;
     AltText: string;
     CodeSpan: Boolean;
-    Highlighted: Boolean; // 추가
-    HighlightBackground: TLayoutColor; // 추가
+    Highlighted: Boolean; // [형광펜] 추가
+    HighlightBackground: TLayoutColor; // [형광펜] 추가
   end;
 
   TInlineStyle = record
     Font: TMarkdownFontStyle;
     Color: TLayoutColor;
     Attribution: IMarkdownNode;
-    Highlighted: Boolean; // 추가
-    HighlightBackground: TLayoutColor; // 추가
+    Highlighted: Boolean; // [형광펜] 추가
+    HighlightBackground: TLayoutColor; // [형광펜] 추가
   end;
 
   TInlineFrame = record
@@ -126,8 +138,8 @@ type
       FGroupNode: IMarkdownNode;
       FGroupStartOffset: Integer;
       FGroupCodeSpan: Boolean;
-      FGroupHighlighted: Boolean; // 추가
-      FGroupHighlightBackground: TLayoutColor; // 추가
+      FGroupHighlighted: Boolean; // [형광펜] 추가
+      FGroupHighlightBackground: TLayoutColor; // [형광펜] 추가
     procedure AddWordLike(const Atom: TInlineAtom);
     procedure ForceBreakWord(const Atom: TInlineAtom);
     function MaxCharsFitting(const Text: string; const Font: TMarkdownFontStyle): Integer;
@@ -142,7 +154,7 @@ type
     procedure AppendToGroup(const Atom: TInlineAtom);
     procedure CloseGroup;
     procedure EmitCodeSpanChip(const RunBounds: TLayoutRectF);
-    procedure EmitHighlightChip(const RunBounds: TLayoutRectF); // 추가
+    procedure EmitHighlightChip(const RunBounds: TLayoutRectF); // [형광펜] 추가
     function SameRunStyle(const Atom: TInlineAtom): Boolean;
     procedure EmitImageItem(const Atom: TInlineAtom);
     procedure EmitMathItem(const Atom: TInlineAtom);
@@ -196,8 +208,13 @@ type
     FTheme: TMarkdownTheme;
     FImageSizes: IMarkdownImageSizeProvider;
     FContentRight: Single;
+//    procedure HandleInlineChild(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
+//      const Child: IMarkdownNode; const Style: TInlineStyle);
     procedure HandleInlineChild(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
-      const Child: IMarkdownNode; const Style: TInlineStyle);
+      const ColorStack: TStack<TLayoutColor>; const Child: IMarkdownNode; const Style: TInlineStyle);
+    procedure HandleInlineHtml(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
+      const ColorStack: TStack<TLayoutColor>; const Child: IMarkdownNode; const Style: TInlineStyle);
+
     procedure AppendTextAtoms(const Atoms: TList<TInlineAtom>; const Text: string; const Style: TInlineStyle;
       const Leaf: IMarkdownNode);
     procedure AppendCodeSpanAtoms(const Atoms: TList<TInlineAtom>; const Child: IMarkdownNode;
@@ -1380,6 +1397,7 @@ begin
   Result := TList<TInlineAtom>.Create;
   try
     const Frames = TList<TInlineFrame>.Create;
+    const ColorStack = TStack<TLayoutColor>.Create; // [색상태그] 추가
     try
       var RootStyle := Default(TInlineStyle);
       RootStyle.Font := BaseFont;
@@ -1402,7 +1420,7 @@ begin
         Frame.ChildIndex := Frame.ChildIndex + 1;
         Frames[LastIndex] := Frame;
 
-        HandleInlineChild(Result, Frames, Child, Frame.Style);
+        HandleInlineChild(Result, Frames, ColorStack, Child, Frame.Style); // [색상태그] ColorStack 전달
       end;
     finally
       Frames.Free;
@@ -1414,11 +1432,13 @@ begin
 end;
 
 procedure TInlineAtomCollector.HandleInlineChild(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
-  const Child: IMarkdownNode; const Style: TInlineStyle);
+  const ColorStack: TStack<TLayoutColor>; const Child: IMarkdownNode; const Style: TInlineStyle);
 begin
   case Child.Kind of
-    TMarkdownNodeKind.Text, TMarkdownNodeKind.InlineHtml:
+    TMarkdownNodeKind.Text:
       AppendTextAtoms(Atoms, (Child as IMarkdownText).Literal, Style, Child);
+    TMarkdownNodeKind.InlineHtml:
+      HandleInlineHtml(Atoms, Frames, ColorStack, Child, Style); // [색상태그] 추가/변경
     TMarkdownNodeKind.CodeSpan:
       AppendCodeSpanAtoms(Atoms, Child, Style);
     TMarkdownNodeKind.SoftLineBreak:
@@ -1457,6 +1477,41 @@ begin
   end;
 end;
 
+procedure TInlineAtomCollector.HandleInlineHtml(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
+  const ColorStack: TStack<TLayoutColor>; const Child: IMarkdownNode; const Style: TInlineStyle);
+var
+  Html: string;
+  Color: TLayoutColor;
+  Frame: TInlineFrame;
+begin
+  Html := (Child as IMarkdownText).Literal;
+
+  if TInlineHtmlColorTag.TryParseOpenColor(Html, Color) then
+  begin
+    // 지금 이 컨테이너(문단)를 순회 중인 프레임의 색을 바꿔치기한다.
+    // 이후 형제 노드들은 모두 이 색으로 그려진다.
+    Frame := Frames[Frames.Count - 1];
+    ColorStack.Push(Frame.Style.Color);
+    Frame.Style.Color := Color;
+    Frames[Frames.Count - 1] := Frame;
+    Exit;
+  end;
+
+  if TInlineHtmlColorTag.IsCloseTag(Html) then
+  begin
+    if ColorStack.Count > 0 then
+    begin
+      Frame := Frames[Frames.Count - 1];
+      Frame.Style.Color := ColorStack.Pop;
+      Frames[Frames.Count - 1] := Frame;
+    end;
+    Exit;
+  end;
+
+  // 색상과 무관한 raw HTML(<br>, 지원 안 하는 태그 등)은 기존과 동일하게 원문 그대로 보여준다.
+  AppendTextAtoms(Atoms, Html, Style, Child);
+end;
+
 procedure TInlineAtomCollector.AppendTextAtoms(const Atoms: TList<TInlineAtom>; const Text: string;
   const Style: TInlineStyle; const Leaf: IMarkdownNode);
 begin
@@ -1484,8 +1539,8 @@ begin
     Atom.Text := Token;
     Atom.Font := Style.Font;
     Atom.Color := Style.Color;
-    Atom.Highlighted := Style.Highlighted; // 추가
-    Atom.HighlightBackground := Style.HighlightBackground; // 추가
+    Atom.Highlighted := Style.Highlighted; // ==형광팬== : 추가
+    Atom.HighlightBackground := Style.HighlightBackground; // ==형광팬== : 추가
     Atom.Node := Attribution;
     Atom.StartOffset := Start - 1;
     Atom.Width := FMeasurer.MeasureText(Token, Style.Font).Width;
@@ -1999,8 +2054,8 @@ begin
   FGroupNode := Atom.Node;
   FGroupStartOffset := Atom.StartOffset;
   FGroupCodeSpan := Atom.CodeSpan;
-  FGroupHighlighted := Atom.Highlighted; // 추가
-  FGroupHighlightBackground := Atom.HighlightBackground; // 추가
+  FGroupHighlighted := Atom.Highlighted; // [형광펜] 추가
+  FGroupHighlightBackground := Atom.HighlightBackground; // [형광펜] 추가
 end;
 
 procedure TInlineWrapper.AppendToGroup(const Atom: TInlineAtom);
@@ -2022,7 +2077,7 @@ begin
   if FGroupCodeSpan then
     EmitCodeSpanChip(Bounds)
   else if FGroupHighlighted then
-    EmitHighlightChip(Bounds); // 조건 추가
+    EmitHighlightChip(Bounds); // [형광펜] 조건 추가
 
   FItems.Add(TDisplayTextRun.Create(Bounds, FGroupNode, FGroupText, FGroupFont, FGroupColor, RunBaseline,
     FGroupStartOffset));
@@ -2041,14 +2096,15 @@ end;
 
 procedure TInlineWrapper.EmitHighlightChip(const RunBounds: TLayoutRectF);
 begin
-  // 배경 사각형을 코드 칩처럼 그리되, 하이라이트 색을 사용
+  // [형광펜] 배경 사각형을 코드 칩처럼 그리되, 하이라이트 색을 사용
   FItems.Add(TDisplayRectangle.Create(RunBounds, FGroupNode, FGroupHighlightBackground, 0, 0));
 end;
 
 function TInlineWrapper.SameRunStyle(const Atom: TInlineAtom): Boolean;
 begin
+  // [형광펜] 형광펜과 일반 텍스트가 같은 런으로 묶이지 않도록 조건 추가
   Result := FGroupFont.Equals(Atom.Font) and (FGroupColor = Atom.Color) and (FGroupNode = Atom.Node) and
-    (FGroupCodeSpan = Atom.CodeSpan) and (FGroupHighlighted = Atom.Highlighted); // 형광펜/일반 텍스트가 같은 런으로 묶이지 않도록 조건 추가
+    (FGroupCodeSpan = Atom.CodeSpan) and (FGroupHighlighted = Atom.Highlighted);
 end;
 
 function TMarkdownFontStyleHelper.Equals(const Other: TMarkdownFontStyle): Boolean;
@@ -2085,6 +2141,168 @@ begin
   const Bounds = TLayoutRectF.Create(FCursor, Top, FCursor + Atom.Width, Top + FMeasurer.LineHeight(Atom.Font));
   FItems.Add(TDisplayTextRun.Create(Bounds, Atom.Node, Atom.Text, Atom.Font, Atom.Color, RunBaseline, 0,
     TDisplayTextRunRole.Source));
+end;
+
+{ TInlineHtmlColorTag }
+
+class function TInlineHtmlColorTag.TagName(const Tag: string): string;
+var
+  S: string;
+  I: Integer;
+begin
+  Result := '';
+  S := Tag.Trim;
+  if (S = '') or (S[1] <> '<') then
+    Exit;
+
+  Delete(S, 1, 1);
+  if (S <> '') and (S[1] = '/') then
+    Delete(S, 1, 1);
+
+  I := 1;
+  while (I <= Length(S)) and not CharInSet(S[I], [' ', #9, '>', '/']) do
+    Inc(I);
+end;
+
+class function TInlineHtmlColorTag.IsCloseTag(const Tag: string): Boolean;
+begin
+  const Name = TagName(Tag);
+  Result := Tag.Trim.StartsWith('</') and ((Name = 'span') or (Name = 'font'));
+end;
+
+class function TInlineHtmlColorTag.ExtractAttribute(const Tag, AttrName: string): string;
+var
+  Lowered: string;
+  P, ValueStart, EndPos: Integer;
+  Quote: Char;
+begin
+  Result := '';
+  Lowered := Tag.ToLower;
+  P := Pos(AttrName.ToLower + '=', Lowered);
+  if P = 0 then
+    Exit;
+
+  ValueStart := P + Length(AttrName) + 1;
+  if ValueStart > Length(Tag) then
+    Exit;
+
+  Quote := Tag[ValueStart];
+  if (Quote = '"') or (Quote = '''') then
+  begin
+    EndPos := Pos(Quote, Tag, ValueStart + 1);
+    if EndPos = 0 then
+      Exit;
+    Result := Copy(Tag, ValueStart + 1, EndPos - ValueStart - 1);
+  end
+  else
+  begin
+    EndPos := ValueStart;
+    while (EndPos <= Length(Tag)) and not CharInSet(Tag[EndPos], [' ', #9, '>']) do
+      Inc(EndPos);
+    Result := Copy(Tag, ValueStart, EndPos - ValueStart);
+  end;
+end;
+
+class function TInlineHtmlColorTag.ExtractStyleColor(const Style: string): string;
+var
+  Lowered: string;
+  P, ColonPos, SemicolonPos: Integer;
+begin
+  Result := '';
+  Lowered := Style.ToLower;
+  P := Pos('color', Lowered);
+
+  // "background-color"에 걸렸으면 그 다음 'color'를 다시 찾는다.
+  if (P > 1) and (Lowered[P - 1] = '-') then
+    P := Pos('color', Lowered, P + 1);
+
+  if P = 0 then
+    Exit;
+
+  ColonPos := Pos(':', Style, P);
+  if ColonPos = 0 then
+    Exit;
+
+  SemicolonPos := Pos(';', Style, ColonPos);
+  if SemicolonPos = 0 then
+    SemicolonPos := Length(Style) + 1;
+
+  Result := Copy(Style, ColonPos + 1, SemicolonPos - ColonPos - 1).Trim;
+end;
+
+class function TInlineHtmlColorTag.TryColorFromCss(const Value: string; out Color: TLayoutColor): Boolean;
+var
+  V, Hex: string;
+  R, G, B: Integer;
+begin
+  Result := False;
+  V := Value.Trim;
+  if V = '' then
+    Exit;
+
+  if V.StartsWith('#') then
+  begin
+    Hex := Copy(V, 2, Length(V) - 1);
+    if Length(Hex) = 3 then
+      Hex := Hex[1] + Hex[1] + Hex[2] + Hex[2] + Hex[3] + Hex[3];
+    if Length(Hex) <> 6 then
+      Exit;
+    if not TryStrToInt('$' + Copy(Hex, 1, 2), R) then Exit;
+    if not TryStrToInt('$' + Copy(Hex, 3, 2), G) then Exit;
+    if not TryStrToInt('$' + Copy(Hex, 5, 2), B) then Exit;
+
+    Color := $FF000000 or (Cardinal(R) shl 16) or (Cardinal(G) shl 8) or Cardinal(B);
+    Result := True;
+    Exit;
+  end;
+
+  Result := True;
+  V := V.ToLower;
+  if V = 'red' then Color := $FFE81123
+  else if V = 'green' then Color := $FF107C10
+  else if V = 'blue' then Color := $FF0078D7
+  else if V = 'yellow' then Color := $FFFFD700
+  else if V = 'orange' then Color := $FFFF8C00
+  else if V = 'purple' then Color := $FF8764B8
+  else if V = 'pink' then Color := $FFE3008C
+  else if V = 'brown' then Color := $FF8B4513
+  else if V = 'black' then Color := $FF000000
+  else if V = 'white' then Color := $FFFFFFFF
+  else if (V = 'gray') or (V = 'grey') then Color := $FF808080
+  else if V = 'cyan' then Color := $FF00B7C3
+  else if V = 'magenta' then Color := $FFEC008C
+  else
+    Result := False;
+end;
+
+class function TInlineHtmlColorTag.TryParseOpenColor(const Tag: string; out Color: TLayoutColor): Boolean;
+var
+  Name, ColorValue, StyleValue: string;
+begin
+  Result := False;
+  if Tag.Trim.StartsWith('</') then
+    Exit;
+
+  Name := TagName(Tag);
+  if (Name <> 'span') and (Name <> 'font') then
+    Exit;
+
+  if Name = 'font' then
+  begin
+    ColorValue := ExtractAttribute(Tag, 'color');
+    if (ColorValue <> '') and TryColorFromCss(ColorValue, Color) then
+      Exit(True);
+  end;
+
+  StyleValue := ExtractAttribute(Tag, 'style');
+  if StyleValue = '' then
+    Exit;
+
+  ColorValue := ExtractStyleColor(StyleValue);
+  if ColorValue = '' then
+    Exit;
+
+  Result := TryColorFromCss(ColorValue, Color);
 end;
 
 end.
