@@ -79,6 +79,7 @@ type
       FDragPoint: TPoint;
       FAutoScrollTimer: TTimer;
       FPreview: TMarkdownViewer;
+      FPreviewUserScroll: TNotifyEvent; // 추가 - 원래 있던 OnScroll 핸들러 보관
       FPreviewTimer: TTimer;
       FPreviewDirty: Boolean;
       FUpdatingPreview: Boolean;
@@ -434,7 +435,9 @@ begin
   var Ours: TNotifyEvent := HandleInternalPreviewScroll;
   if (TMethod(FPreview.OnScroll).Code = TMethod(Ours).Code) and
      (TMethod(FPreview.OnScroll).Data = TMethod(Ours).Data) then
-    FPreview.OnScroll := nil;
+    FPreview.OnScroll := FPreviewUserScroll; // nil 대신 원래 핸들러로 복원
+
+  FPreviewUserScroll := nil;
 end;
 
 procedure TMarkdownEditor.AttachPreview(const Viewer: TMarkdownViewer);
@@ -449,6 +452,7 @@ begin
   if FPreview <> nil then
   begin
     FPreview.FreeNotification(Self);
+    FPreviewUserScroll := FPreview.OnScroll; // 추가
     FPreview.OnScroll := HandleInternalPreviewScroll;
   end;
 
@@ -550,6 +554,9 @@ begin
   finally
     FSyncing := False;
   end;
+
+  if Assigned(FPreviewUserScroll) then
+    FPreviewUserScroll(Sender); // 추가 - 사용자가 붙인 mdvPreviewScroll 등을 호출
 end;
 
 procedure TMarkdownEditor.SyncPreviewToEditor;
