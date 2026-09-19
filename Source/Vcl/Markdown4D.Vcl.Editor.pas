@@ -84,6 +84,7 @@ type
       FUpdatingPreview: Boolean;
       FSync: TMarkdownEditorSync;
       FSyncScroll: Boolean;
+      FReadOnly: Boolean; // 추가
       FSyncing: Boolean;
       FSyncedLayoutCount: Integer;
       FRowModel: TMarkdownEditorRows;
@@ -245,6 +246,7 @@ type
     // SyncScroll is on, two-way scroll synchronisation between the panes.
     property Preview: TMarkdownViewer read FPreview write SetPreview;
     property SyncScroll: Boolean read FSyncScroll write FSyncScroll default True;
+    property ReadOnly: Boolean read FReadOnly write FReadOnly default False; // 추가
     property Align;
     property Anchors;
     property Constraints;
@@ -1009,7 +1011,7 @@ function TMarkdownEditor.BeginSelectionDrag(const X, Y, Offset: Integer): Boolea
 begin
   // A press inside the selection may become a drag, so the selection is left
   // untouched until the mouse either moves far enough or is released in place.
-  Result := FModel.OffsetInSelection(Offset);
+  Result := (not FReadOnly) and FModel.OffsetInSelection(Offset);
   if not Result then
     Exit;
 
@@ -1067,7 +1069,7 @@ begin
 
   FContextMenu.Items.Clear;
 
-  for var Item in TMarkdownEditorContextMenu.Build(FModel, ClipboardHasText) do
+  for var Item in TMarkdownEditorContextMenu.Build(FModel, ClipboardHasText, FReadOnly) do
   begin
     if Item.StartsGroup and (FContextMenu.Items.Count > 0) then
     begin
@@ -1092,7 +1094,7 @@ procedure TMarkdownEditor.HandleContextItemClick(Sender: TObject);
 begin
   const Command = TEditorContextCommand((Sender as TMenuItem).Tag);
 
-  if TMarkdownEditorContextMenu.Execute(FModel, Command) then
+  if TMarkdownEditorContextMenu.Execute(FModel, Command, FReadOnly) then
   begin
     RefreshAfterEdit;
     Exit;
@@ -1443,6 +1445,9 @@ end;
 
 procedure TMarkdownEditor.CutToClipboard;
 begin
+  if FReadOnly then
+    Exit;
+
   if not FModel.HasSelection then
     Exit;
 
@@ -1455,6 +1460,9 @@ end;
 
 procedure TMarkdownEditor.PasteFromClipboard;
 begin
+  if FReadOnly then
+    Exit;
+
   var Pasted: string;
   if not TryReadClipboard(Pasted) then
     Exit;
@@ -1697,7 +1705,11 @@ procedure TMarkdownEditor.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
 
-  if not ApplyKeyStroke(TMarkdownEditorKeymap.Resolve(Key, Shift)) then
+  const Stroke = TMarkdownEditorKeymap.Resolve(Key, Shift);
+  if FReadOnly and TMarkdownEditorKeyDispatch.IsEditAction(Stroke.Action) then
+    Exit;
+
+  if not ApplyKeyStroke(Stroke) then
     Exit;
 
   Key := 0;
@@ -1762,6 +1774,9 @@ end;
 procedure TMarkdownEditor.KeyPress(var Key: Char);
 begin
   inherited KeyPress(Key);
+
+  if FReadOnly then
+    Exit;
 
   if (Key < ' ') or (Key = DeleteChar) then
     Exit;

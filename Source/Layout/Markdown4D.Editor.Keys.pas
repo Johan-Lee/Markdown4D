@@ -49,6 +49,7 @@ type
   TMarkdownEditorKeyDispatch = record
     class function Apply(const Model: TMarkdownEditorModel; const Stroke: TEditorKeyStroke;
       const IndentWidth: Integer): Boolean; static;
+    class function IsEditAction(const Action: TEditorKeyAction): Boolean; static; // 추가
   end;
 
 implementation
@@ -241,6 +242,19 @@ begin
       Model.ExecuteCommand(TEditorCommand.Link);
   else
     Result := False;
+  end;
+end;
+
+class function TMarkdownEditorKeyDispatch.IsEditAction(const Action: TEditorKeyAction): Boolean;
+begin
+  case Action of
+    TEditorKeyAction.DeleteBack, TEditorKeyAction.DeleteForward, TEditorKeyAction.DeleteWordLeft,
+    TEditorKeyAction.DeleteWordRight, TEditorKeyAction.InsertLineBreak, TEditorKeyAction.Indent,
+    TEditorKeyAction.Outdent, TEditorKeyAction.Cut, TEditorKeyAction.Paste, TEditorKeyAction.Undo,
+    TEditorKeyAction.Redo, TEditorKeyAction.Bold, TEditorKeyAction.Italic, TEditorKeyAction.Link:
+      Result := True;
+  else
+    Result := False; // 이동/선택/복사는 읽기 전용이어도 항상 허용
   end;
 end;
 
