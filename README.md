@@ -7,7 +7,7 @@
 - TMarkdownViewer(VCL).ScrollPosition 속성 추가
 - TMarkdownViewer(VCL).ScrollRange 속성 추가
 - TMarkdownViewer(VCL).OnScroll 강화
-  - Text가 변경되었을 떄 ScrollRange 값이 초기화 되도록 수정
+  - Text가 변경되었을 때 ScrollRange 값이 초기화 되도록 수정
   - TarkdownEditor.Preview에 연결된 상태라도 OnScroll Event가 우회 호출되도록 수정
 - TMarkdownViewer(VCL).TouchScrollMode 속성 추가
   - TouchScrollMode := False -> 본문 텍스트 선택(기본값)\
