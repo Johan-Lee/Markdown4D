@@ -1,3 +1,55 @@
+# 수정/추가 내역
+
+- 형광펜(==) 지원
+- html 태그를 이용한 텍스트의 색상과 배경 색상 지원
+- 텍스트 밑줄 처리 지원
+- TMarkdownEditor.ReadOnly 속성 추가
+- TMarkdownViewer(VCL).ScrollPosition 속성 추가
+- TMarkdownViewer(VCL).ScrollRange 속성 추가
+- TMarkdownViewer(VCL).OnScroll 강화
+  - Text가 변경되었을 때 ScrollRange 값이 초기화 되도록 수정
+  - TarkdownEditor.Preview에 연결된 상태라도 OnScroll Event가 우회 호출되도록 수정
+- TMarkdownViewer(VCL).TouchScrollMode 속성 추가
+  - TouchScrollMode := False // 본문 텍스트 선택(기본값)\
+    TouchScrollMode := True // Gesture가 지원되지 않는 터치 모니터에서 Mouse Drag로 Text Scroll 구현
+- TMarkdownEditor(VCL).Text의 내용을 변경할 경우, ScrollPosition이 0 으로 초기화 되는 문제 수정
+  - SyncScroll을 False로 설정하면 되지만 Preview 대상인 MarkdownViwer의 스크롤 위치가 동기화 되지 않음
+
+# 사용 예시
+
+```html
+==형광펜==
+
+<font color="#FF0000">빨강</font>
+<font color="#0078D7">파랑</font>
+<font color="yellow">노랑</font>
+
+<span style="color:red">빨강</span>
+<span style="color:blue">파랑</span>
+<span style="color:#FFD700">노랑</span>
+
+<span style="background-color:#FFF3A0">배경만 노랗게</span>
+<span style="color:red;background-color:#eeeeee">글자는 빨강, 배경은 회색</span>
+
+<u>밑줄 친 문장</u>입니다.
+
+<span style="color:blue"><u>파란색이면서 밑줄</u></span>도 됩니다.
+```
+```pascal
+// 형광펜 색상은 런타임에서 아래와 같이 변경할 수 있습니다.
+MarkdownViewer1.Theme.HighlightBackgroundColor := $FF90EE90; // 연두색 배경으로 변경
+MarkdownViewer1.Theme.HighlightTextColor := $FF000000; // 글자는 검정으로
+MarkdownViewer1.Invalidate; // 또는 Refresh/Reflow 계열 메서드로 재레이아웃
+
+// Gesture가 지원되지 않는 터치 모니터에서 마우스 드래그로 Text를 스크롤하려면
+MarkdownViewer1.TouchScrollMode := True;
+```
+
+>Thanks to **GDKsoftware** for releasing such an excellent library.\
+>All rights reserved by **GDKsoftware**.
+
+----
+
 <img src="logo.png" align="right" width="128" alt="Markdown4D logo"/>
 
 # Markdown4D

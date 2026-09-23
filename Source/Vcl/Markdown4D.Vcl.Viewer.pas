@@ -80,6 +80,10 @@ type
       FSelecting: Boolean;
       FLastMousePoint: TPoint;
       FHasLastMousePoint: Boolean;
+      FTouchScrollMode: Boolean; // [09.23.2026] Added
+      FPanning: Boolean; // [09.23.2026] Added
+      FPanOrigin: TPoint; // [09.23.2026] Added
+      FPanStartOffset: Single; // [09.23.2026] Added
       FCodeHoverActive: Boolean;
       FCodeHoverRect: TLayoutRectF;
       FCodeHoverText: string;
@@ -94,6 +98,7 @@ type
       FOnResolveImage: TMarkdownResolveImageEvent;
       FOnRemoteImageRequest: TMarkdownRemoteImageEvent;
       FOnScroll: TNotifyEvent;
+      FLastPanPoint: TPoint; // [09.23.2026] Added - Previous touch point during a swipe
     function InvokeOnMainThread(const Action: TThreadProcedure): Boolean;
     procedure HandleFlushTimer(Sender: TObject);
     procedure ResolvePendingImages;
@@ -130,6 +135,8 @@ type
     procedure HandleContextItemClick(Sender: TObject);
     function GetContentHeight: Integer;
     function GetScrollOffset: Single;
+    function GetScrollPosition: Integer; // [09.23.2026] Added
+    function GetScrollRange: Integer; // [09.23.2026] Added
     function GetDisplayList: IMarkdownDisplayList;
     function GetLayoutCount: Integer;
     function GetText: string;
@@ -156,6 +163,7 @@ type
     procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     function DoMouseWheel(Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint): Boolean; override;
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
+    procedure DoGesture(const EventInfo: TGestureEventInfo; var Handled: Boolean); override; // [09.23.2026] Added
 
   public
     constructor Create(Owner: TComponent); override;
@@ -174,6 +182,8 @@ type
     property Theme: TMarkdownTheme read FTheme write SetTheme;
     property ContentHeight: Integer read GetContentHeight;
     property ScrollOffset: Single read GetScrollOffset write SetScrollPosition;
+    property ScrollPosition: Integer read GetScrollPosition; // [09.23.2026] Added - Current position of the vertical scrollbar
+    property ScrollRange: Integer read GetScrollRange; // [09.23.2026] Added - Maximum range the vertical scroll bar can move
     property DisplayList: IMarkdownDisplayList read GetDisplayList;
     // Advances every time the content is laid out again (first width, resize,
     // arriving images, upgrading diagrams), so an attached editor can tell that
@@ -186,6 +196,7 @@ type
     property ThemePreset: TMarkdownThemePreset read FThemePreset write SetThemePreset
       default TMarkdownThemePreset.Light;
     property Images: TMarkdownViewerImageSettings read FImages write SetImages;
+    property TouchScrollMode: Boolean read FTouchScrollMode write FTouchScrollMode default False; // [09.23.2026] Added
     property Align;
     property Anchors;
     property Constraints;
@@ -235,6 +246,9 @@ begin
   Width := DefaultControlWidth;
   Height := DefaultControlHeight;
   TabStop := True;
+
+  Touch.InteractiveGestures := [igPan]; // [09.23.2026] Added
+  Touch.InteractiveGestureOptions := [igoPanSingleFingerVertical, igoPanInertia]; // [09.23.2026] Added
 
   FImages := TMarkdownViewerImageSettings.Create;
   FTheme := TMarkdownTheme.CreateLight;
@@ -342,11 +356,15 @@ begin
   if Flushed then
   begin
     if FModel.ShouldAutoFollow then
-      ScrollToBottom;
+      ScrollToBottom
+    else
+      SetScrollPosition(FModel.ScrollOffset); // [09.23.2026] Added - Maintain the location and trigger only a range update notification
+
     ResolvePendingImages;
     RefreshCodeHover;
-    UpdateScrollBar;
-    Invalidate;
+    // [09.23.2026] Removed
+    //UpdateScrollBar;
+    //Invalidate;
   end;
 
   if not FModel.IsDirty then
@@ -577,6 +595,16 @@ begin
     Exit;
 
   FPressedLinkUrl := '';
+
+  if FTouchScrollMode then // [09.23.2026] Added
+  begin
+    FPanning := True;
+    FPanOrigin := System.Types.Point(X, Y);
+    FPanStartOffset := FModel.ScrollOffset;
+    Cursor := crSizeNS;
+    Exit;
+  end;
+
   FSelecting := True;
   FModel.SetSelectionAnchor(Point);
   Invalidate;
@@ -588,6 +616,14 @@ begin
 
   FLastMousePoint := Point(X, Y);
   FHasLastMousePoint := True;
+
+  if FPanning then // [09.23.2026] Added
+  begin
+    const DeltaY = Y - FPanOrigin.Y;
+    // If you swipe up (decreasing Y), the content should move up as well, so reverse the sign.
+    SetScrollPosition(FPanStartOffset - DeltaY);
+    Exit;
+  end;
 
   const ContentPoint = ContentPointOf(X, Y);
   if FSelecting then
@@ -622,6 +658,13 @@ begin
   if Button <> TMouseButton.mbLeft then
     Exit;
 
+  if FPanning then // [09.23.2026] Added
+  begin
+    FPanning := False;
+    Cursor := crDefault;
+    Exit;
+  end;
+
   if FSelecting then
   begin
     FSelecting := False;
@@ -638,6 +681,29 @@ begin
   const IsSameLink = TryFindLinkUrl(ContentPointOf(X, Y), ReleasedUrl) and (ReleasedUrl = PressedUrl);
   if IsSameLink and Assigned(FOnLinkClick) then
     FOnLinkClick(Self, PressedUrl);
+end;
+
+// [09.23.2026] Added
+procedure TMarkdownViewer.DoGesture(const EventInfo: TGestureEventInfo; var Handled: Boolean);
+begin
+  if EventInfo.GestureID <> igiPan then
+  begin
+    inherited;
+    Exit;
+  end;
+
+  if TInteractiveGestureFlag.gfBegin in EventInfo.Flags then
+    FLastPanPoint := EventInfo.Location
+  else
+  begin
+    const DeltaY = EventInfo.Location.Y - FLastPanPoint.Y;
+    // When swipe finger upward (decreasing Y), the content must also move upward along with
+    // your finger, so the scroll offset is increased accordingly
+    SetScrollPosition(FModel.ScrollOffset - DeltaY);
+    FLastPanPoint := EventInfo.Location;
+  end;
+
+  Handled := True;
 end;
 
 function TMarkdownViewer.DoMouseWheel(Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint): Boolean;
@@ -1148,6 +1214,16 @@ end;
 function TMarkdownViewer.GetScrollOffset: Single;
 begin
   Result := FModel.ScrollOffset;
+end;
+
+function TMarkdownViewer.GetScrollPosition: Integer;
+begin
+  Result := Round(FModel.ScrollOffset);
+end;
+
+function TMarkdownViewer.GetScrollRange: Integer;
+begin
+  Result := Max(0, ContentHeight - ClientHeight);
 end;
 
 function TMarkdownViewer.GetDisplayList: IMarkdownDisplayList;

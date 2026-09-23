@@ -25,12 +25,12 @@ type
   end;
 
   TMarkdownEditorContextMenu = record
-    class function Build(const Model: TMarkdownEditorModel;
-      const ClipboardHasText: Boolean): TArray<TEditorContextItem>; static;
+    class function Build(const Model: TMarkdownEditorModel; const ClipboardHasText: Boolean;
+      const ReadOnly: Boolean = False): TArray<TEditorContextItem>; static; // [09.23.2026] Changed
     // Runs the entries that only touch the text. Clipboard entries return False
     // because they need the host's clipboard.
-    class function Execute(const Model: TMarkdownEditorModel;
-      const Command: TEditorContextCommand): Boolean; static;
+    class function Execute(const Model: TMarkdownEditorModel; const Command: TEditorContextCommand;
+      const ReadOnly: Boolean = False): Boolean; static; // [09.23.2026] Changed
   end;
 
 implementation
@@ -54,26 +54,30 @@ begin
 end;
 
 class function TMarkdownEditorContextMenu.Build(const Model: TMarkdownEditorModel;
-  const ClipboardHasText: Boolean): TArray<TEditorContextItem>;
+  const ClipboardHasText: Boolean; const ReadOnly: Boolean = False): TArray<TEditorContextItem>; // [09.23.2026] Changed
 begin
   const HasSelection = Model.HasSelection;
   const HasText = Length(Model.Text) > 0;
 
   Result := [
-    TEditorContextItem.Create(TEditorContextCommand.Undo, UndoCaption, Model.CanUndo, False),
-    TEditorContextItem.Create(TEditorContextCommand.Redo, RedoCaption, Model.CanRedo, False),
-    TEditorContextItem.Create(TEditorContextCommand.Cut, CutCaption, HasSelection, True),
+    TEditorContextItem.Create(TEditorContextCommand.Undo, UndoCaption, Model.CanUndo and not ReadOnly, False), // [09.23.2026] Changed
+    TEditorContextItem.Create(TEditorContextCommand.Redo, RedoCaption, Model.CanRedo and not ReadOnly, False), // [09.23.2026] Changed
+    TEditorContextItem.Create(TEditorContextCommand.Cut, CutCaption, HasSelection and not ReadOnly, True),// [09.23.2026] Changed
     TEditorContextItem.Create(TEditorContextCommand.Copy, CopyCaption, HasSelection, False),
-    TEditorContextItem.Create(TEditorContextCommand.Paste, PasteCaption, ClipboardHasText, False),
-    TEditorContextItem.Create(TEditorContextCommand.DeleteSelection, DeleteCaption, HasSelection, False),
+    TEditorContextItem.Create(TEditorContextCommand.Paste, PasteCaption, ClipboardHasText and not ReadOnly, False), // [09.23.2026] Changed
+    TEditorContextItem.Create(TEditorContextCommand.DeleteSelection, DeleteCaption, HasSelection and not ReadOnly, False), // [09.23.2026] Changed
     TEditorContextItem.Create(TEditorContextCommand.SelectAll, SelectAllCaption, HasText, True)
   ];
 end;
 
 class function TMarkdownEditorContextMenu.Execute(const Model: TMarkdownEditorModel;
-  const Command: TEditorContextCommand): Boolean;
+  const Command: TEditorContextCommand; const ReadOnly: Boolean = False): Boolean; // [09.23.2026] Changed
 begin
   Result := True;
+
+  if ReadOnly and (Command in [TEditorContextCommand.Undo, TEditorContextCommand.Redo,
+    TEditorContextCommand.DeleteSelection]) then
+    Exit; // [09.23.2026] Added
 
   case Command of
     TEditorContextCommand.Undo:

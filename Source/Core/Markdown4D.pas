@@ -47,6 +47,7 @@ implementation
 uses
   Markdown4D.Version,
   Markdown4D.Pipeline,
+  Markdown4D.Extensions.Sample, // [09.23.2026] Added
   Markdown4D.Parser.Incremental,
   Markdown4D.Writer.Markdown;
 
@@ -112,7 +113,7 @@ begin
 
   const IsGfmDialect = (Dialect = TMarkdownDialect.Gfm);
   if IsGfmDialect then
-    Builder := Builder.UseGfm;
+    Builder := Builder.UseGfm.Use(TMarkExtension.Create); // [09.23.2026] Added
 
   const IsUnsafe = (Mode = TRenderMode.Unsafe);
   if IsUnsafe then

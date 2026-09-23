@@ -81,12 +81,30 @@ type
     Source: string;
     AltText: string;
     CodeSpan: Boolean;
+    Highlighted: Boolean; // [09.23.2026] Added
+    HighlightBackground: TLayoutColor; // [09.23.2026] Added
+  end;
+
+  // [09.23.2026] Added
+  TInlineHtmlColorTag = record
+  public
+    class function TryParseOpenColor(const Tag: string; out Color: TLayoutColor): Boolean; static;
+    class function TryParseOpenBackground(const Tag: string; out Color: TLayoutColor): Boolean; static;
+    class function IsUnderlineOpenTag(const Tag: string): Boolean; static; // [09.23.2026] Added
+    class function IsCloseTag(const Tag: string): Boolean; static;
+  private
+    class function TagName(const Tag: string): string; static;
+    class function ExtractAttribute(const Tag, AttrName: string): string; static;
+    class function ExtractStyleProperty(const Style, PropertyName: string): string; static;
+    class function TryColorFromCss(const Value: string; out Color: TLayoutColor): Boolean; static;
   end;
 
   TInlineStyle = record
     Font: TMarkdownFontStyle;
     Color: TLayoutColor;
     Attribution: IMarkdownNode;
+    Highlighted: Boolean; // [09.23.2026] Added
+    HighlightBackground: TLayoutColor; // [09.23.2026] Added
   end;
 
   TInlineFrame = record
@@ -124,6 +142,8 @@ type
       FGroupSourceNode: IMarkdownNode;
       FGroupStartOffset: Integer;
       FGroupCodeSpan: Boolean;
+      FGroupHighlighted: Boolean; // [09.23.2026] Added
+      FGroupHighlightBackground: TLayoutColor; // [09.23.2026] Added
     procedure AddWordLike(const Atom: TInlineAtom);
     procedure ForceBreakWord(const Atom: TInlineAtom);
     function MaxCharsFitting(const Text: string; const Font: TMarkdownFontStyle): Integer;
@@ -138,6 +158,7 @@ type
     procedure AppendToGroup(const Atom: TInlineAtom);
     procedure CloseGroup;
     procedure EmitCodeSpanChip(const RunBounds: TLayoutRectF);
+    procedure EmitHighlightChip(const RunBounds: TLayoutRectF); // [09.23.2026] Added
     function SameRunStyle(const Atom: TInlineAtom): Boolean;
     procedure EmitImageItem(const Atom: TInlineAtom);
     procedure EmitMathItem(const Atom: TInlineAtom);
@@ -192,7 +213,9 @@ type
     FImageSizes: IMarkdownImageSizeProvider;
     FContentRight: Single;
     procedure HandleInlineChild(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
-      const Child: IMarkdownNode; const Style: TInlineStyle);
+      const StyleStack: TStack<TInlineStyle>; const Child: IMarkdownNode; const Style: TInlineStyle); // [09.23.2026] Changed
+    procedure HandleInlineHtml(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
+      const StyleStack: TStack<TInlineStyle>; const Child: IMarkdownNode; const Style: TInlineStyle); // [09.23.2026] Added
     procedure AppendTextAtoms(const Atoms: TList<TInlineAtom>; const Text: string; const Style: TInlineStyle;
       const Leaf: IMarkdownNode);
     procedure AppendCodeSpanAtoms(const Atoms: TList<TInlineAtom>; const Child: IMarkdownNode;
@@ -1375,6 +1398,7 @@ begin
   Result := TList<TInlineAtom>.Create;
   try
     const Frames = TList<TInlineFrame>.Create;
+    const StyleStack = TStack<TInlineStyle>.Create; // [09.23.2026] Added
     try
       var RootStyle := Default(TInlineStyle);
       RootStyle.Font := BaseFont;
@@ -1397,9 +1421,10 @@ begin
         Frame.ChildIndex := Frame.ChildIndex + 1;
         Frames[LastIndex] := Frame;
 
-        HandleInlineChild(Result, Frames, Child, Frame.Style);
+        HandleInlineChild(Result, Frames, StyleStack, Child, Frame.Style); // [09.23.2026] Changed
       end;
     finally
+      StyleStack.Free; // [09.23.2026] Added
       Frames.Free;
     end;
   except
@@ -1409,11 +1434,13 @@ begin
 end;
 
 procedure TInlineAtomCollector.HandleInlineChild(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
-  const Child: IMarkdownNode; const Style: TInlineStyle);
+  const StyleStack: TStack<TInlineStyle>; const Child: IMarkdownNode; const Style: TInlineStyle); // [09.23.2026] Changed
 begin
   case Child.Kind of
-    TMarkdownNodeKind.Text, TMarkdownNodeKind.InlineHtml:
+    TMarkdownNodeKind.Text: // Separate InlineHtml
       AppendTextAtoms(Atoms, (Child as IMarkdownText).Literal, Style, Child);
+    TMarkdownNodeKind.InlineHtml:
+      HandleInlineHtml(Atoms, Frames, StyleStack, Child, Style); // [확장] Inlinehtml 분리
     TMarkdownNodeKind.CodeSpan:
       AppendCodeSpanAtoms(Atoms, Child, Style);
     TMarkdownNodeKind.SoftLineBreak:
@@ -1452,6 +1479,63 @@ begin
   end;
 end;
 
+procedure TInlineAtomCollector.HandleInlineHtml(const Atoms: TList<TInlineAtom>; const Frames: TList<TInlineFrame>;
+  const StyleStack: TStack<TInlineStyle>; const Child: IMarkdownNode; const Style: TInlineStyle); // [09.23.2026] Added
+var
+  Html: string;
+  NewStyle: TInlineStyle;
+  Color, BackgroundColor: TLayoutColor;
+  HasChange: Boolean;
+  Frame: TInlineFrame;
+begin
+  Html := (Child as IMarkdownText).Literal;
+
+  if TInlineHtmlColorTag.IsCloseTag(Html) then
+  begin
+    if StyleStack.Count > 0 then
+    begin
+      Frame := Frames[Frames.Count - 1];
+      Frame.Style := StyleStack.Pop; // Restore all styles from before the HTML tag, regardless of the changes it made
+      Frames[Frames.Count - 1] := Frame;
+    end;
+    Exit;
+  end;
+
+  NewStyle := Style;
+  HasChange := False;
+
+  if TInlineHtmlColorTag.TryParseOpenColor(Html, Color) then
+  begin
+    NewStyle.Color := Color;
+    HasChange := True;
+  end;
+
+  if TInlineHtmlColorTag.TryParseOpenBackground(Html, BackgroundColor) then
+  begin
+    NewStyle.Highlighted := True; // Reusing the same background drawing mechanism as the highlighter (mark)
+    NewStyle.HighlightBackground := BackgroundColor;
+    HasChange := True;
+  end;
+
+  if TInlineHtmlColorTag.IsUnderlineOpenTag(Html) then
+  begin
+    NewStyle.Font.Underline := True;
+    HasChange := True;
+  end;
+
+  if HasChange then
+  begin
+    StyleStack.Push(Style); // Save the entire style before making changes
+    Frame := Frames[Frames.Count - 1];
+    Frame.Style := NewStyle;
+    Frames[Frames.Count - 1] := Frame;
+    Exit;
+  end;
+
+  // 위 어느 것도 아니면 기존과 동일하게 원문 그대로 보여준다.
+  AppendTextAtoms(Atoms, Html, Style, Child);
+end;
+
 procedure TInlineAtomCollector.AppendTextAtoms(const Atoms: TList<TInlineAtom>; const Text: string;
   const Style: TInlineStyle; const Leaf: IMarkdownNode);
 begin
@@ -1479,6 +1563,8 @@ begin
     Atom.Text := Token;
     Atom.Font := Style.Font;
     Atom.Color := Style.Color;
+    Atom.Highlighted := Style.Highlighted; // [09.23.2026] Added
+    Atom.HighlightBackground := Style.HighlightBackground; // [09.23.2026] Added
     Atom.Node := Attribution;
     Atom.SourceNode := Leaf;
     Atom.StartOffset := Start - 1;
@@ -1590,6 +1676,17 @@ begin
   // (see TLayoutWorker.EmitTaskCheckbox); a task marker contributes no inline content.
   if IsCheckedTask or IsUncheckedTask then
     Exit;
+
+  const IsHighlight = (Custom.NodeName = 'mark'); // [09.23.2026] Added
+  if IsHighlight then
+  begin
+    var MarkStyle := Style;
+    MarkStyle.Highlighted := True;
+    MarkStyle.HighlightBackground := FTheme.HighlightBackgroundColor;
+    MarkStyle.Color := FTheme.HighlightTextColor; // Also change the text color
+    PushStyledFrame(Frames, Child, MarkStyle);
+    Exit;
+  end;
 
   const IsStrikethrough = (Custom.NodeName = TGfmInlineParser.StrikethroughNodeName);
   if not IsStrikethrough then
@@ -1984,6 +2081,8 @@ begin
   FGroupSourceNode := Atom.SourceNode;
   FGroupStartOffset := Atom.StartOffset;
   FGroupCodeSpan := Atom.CodeSpan;
+  FGroupHighlighted := Atom.Highlighted; // [09.23.2026] Added
+  FGroupHighlightBackground := Atom.HighlightBackground; // [09.23.2026] Added
 end;
 
 procedure TInlineWrapper.AppendToGroup(const Atom: TInlineAtom);
@@ -2003,7 +2102,9 @@ begin
   const Bounds = TLayoutRectF.Create(FCursor, Top, FCursor + FGroupWidth, Top + RunHeight);
 
   if FGroupCodeSpan then
-    EmitCodeSpanChip(Bounds);
+    EmitCodeSpanChip(Bounds)
+  else if FGroupHighlighted then
+    EmitHighlightChip(Bounds); // [09.23.2026] Added
 
   FItems.Add(TDisplayTextRun.Create(Bounds, FGroupNode, FGroupText, FGroupFont, FGroupColor, RunBaseline,
     FGroupStartOffset, TDisplayTextRunRole.Text, FGroupSourceNode));
@@ -2020,10 +2121,19 @@ begin
   FItems.Add(TDisplayRectangle.Create(ChipBounds, FGroupNode, FCodeSpanBackground, 0, 0));
 end;
 
+procedure TInlineWrapper.EmitHighlightChip(const RunBounds: TLayoutRectF); // [09.23.2026] Added
+begin
+  // [확장] 배경 사각형을 코드 칩처럼 그리되, 하이라이트 색을 사용
+  FItems.Add(TDisplayRectangle.Create(RunBounds, FGroupNode, FGroupHighlightBackground, 0, 0));
+end;
+
 function TInlineWrapper.SameRunStyle(const Atom: TInlineAtom): Boolean;
 begin
+  // [09.23.2026] Changed - Add a condition to prevent it from being grouped into a run like regular text
   Result := FGroupFont.Equals(Atom.Font) and (FGroupColor = Atom.Color) and (FGroupNode = Atom.Node) and
-    (FGroupSourceNode = Atom.SourceNode) and (FGroupCodeSpan = Atom.CodeSpan);
+    (FGroupCodeSpan = Atom.CodeSpan) and (FGroupCodeSpan = Atom.CodeSpan) and
+    (FGroupHighlighted = Atom.Highlighted) and // // [09.23.2026] Added
+    (FGroupHighlightBackground = Atom.HighlightBackground); // // [09.23.2026] Added
 end;
 
 function TMarkdownFontStyleHelper.Equals(const Other: TMarkdownFontStyle): Boolean;
@@ -2060,6 +2170,216 @@ begin
   const Bounds = TLayoutRectF.Create(FCursor, Top, FCursor + Atom.Width, Top + FMeasurer.LineHeight(Atom.Font));
   FItems.Add(TDisplayTextRun.Create(Bounds, Atom.Node, Atom.Text, Atom.Font, Atom.Color, RunBaseline, 0,
     TDisplayTextRunRole.Source));
+end;
+
+{ TInlineHtmlColorTag }
+
+// [09.23.2026] Added
+class function TInlineHtmlColorTag.TagName(const Tag: string): string;
+var
+  S: string;
+  I: Integer;
+begin
+  Result := '';
+  S := Tag.Trim;
+  if (S = '') or (S[1] <> '<') then
+    Exit;
+
+  Delete(S, 1, 1);
+  if (S <> '') and (S[1] = '/') then
+    Delete(S, 1, 1);
+
+  I := 1;
+  while (I <= Length(S)) and not CharInSet(S[I], [' ', #9, '>', '/']) do
+    Inc(I);
+
+  Result := Copy(S, 1, I - 1).ToLower;
+end;
+
+// [09.23.2026] Added
+class function TInlineHtmlColorTag.IsCloseTag(const Tag: string): Boolean;
+begin
+  const Name = TagName(Tag).ToLower;
+  Result := Tag.Trim.StartsWith('</') and ((Name = 'span') or (Name = 'font') or (Name = 'u'));
+end;
+
+// [09.23.2026] Added
+class function TInlineHtmlColorTag.ExtractAttribute(const Tag, AttrName: string): string;
+var
+  Lowered: string;
+  P, ValueStart, EndPos: Integer;
+  Quote: Char;
+begin
+  Result := '';
+  Lowered := Tag.ToLower;
+  P := Pos(AttrName.ToLower + '=', Lowered);
+  if P = 0 then
+    Exit;
+
+  ValueStart := P + Length(AttrName) + 1;
+  if ValueStart > Length(Tag) then
+    Exit;
+
+  Quote := Tag[ValueStart];
+  if (Quote = '"') or (Quote = '''') then
+  begin
+    EndPos := Pos(Quote, Tag, ValueStart + 1);
+    if EndPos = 0 then
+      Exit;
+    Result := Copy(Tag, ValueStart + 1, EndPos - ValueStart - 1);
+  end
+  else
+  begin
+    EndPos := ValueStart;
+    while (EndPos <= Length(Tag)) and not CharInSet(Tag[EndPos], [' ', #9, '>']) do
+      Inc(EndPos);
+    Result := Copy(Tag, ValueStart, EndPos - ValueStart);
+  end;
+end;
+
+// [09.23.2026] Added
+// A generic version that takes a property name as an argument, instead of ExtractStyleColor(Style).
+// When searching for “color,” it checks the boundaries at the beginning and end to ensure it doesn't
+// mistakenly match part of “background-color.
+class function TInlineHtmlColorTag.ExtractStyleProperty(const Style, PropertyName: string): string;
+var
+  Lowered, LoweredProp: string;
+  P, Q, ColonPos, SemicolonPos: Integer;
+begin
+  Result := '';
+  Lowered := Style.ToLower;
+  LoweredProp := PropertyName.ToLower;
+
+  P := Pos(LoweredProp, Lowered);
+  while P > 0 do
+  begin
+    const PrecededOk = (P = 1) or not CharInSet(Lowered[P - 1], ['a'..'z', '0'..'9', '-']);
+
+    Q := P + Length(LoweredProp);
+    while (Q <= Length(Lowered)) and (Lowered[Q] = ' ') do
+      Inc(Q);
+
+    const FollowedOk = (Q <= Length(Lowered)) and (Lowered[Q] = ':');
+    if PrecededOk and FollowedOk then
+    begin
+      ColonPos := Q;
+      SemicolonPos := Pos(';', Style, ColonPos);
+      if SemicolonPos = 0 then
+        SemicolonPos := Length(Style) + 1;
+
+      Result := Copy(Style, ColonPos + 1, SemicolonPos - ColonPos - 1).Trim;
+      Exit;
+    end;
+
+    P := Pos(LoweredProp, Lowered, P + 1);
+  end;
+end;
+
+// [09.23.2026] Added
+class function TInlineHtmlColorTag.TryColorFromCss(const Value: string; out Color: TLayoutColor): Boolean;
+var
+  V, Hex: string;
+  R, G, B: Integer;
+begin
+  Result := False;
+  V := Value.Trim;
+  if V = '' then
+    Exit;
+
+  if V.StartsWith('#') then
+  begin
+    Hex := Copy(V, 2, Length(V) - 1);
+    if Length(Hex) = 3 then
+      Hex := Hex[1] + Hex[1] + Hex[2] + Hex[2] + Hex[3] + Hex[3];
+    if Length(Hex) <> 6 then
+      Exit;
+    if not TryStrToInt('$' + Copy(Hex, 1, 2), R) then Exit;
+    if not TryStrToInt('$' + Copy(Hex, 3, 2), G) then Exit;
+    if not TryStrToInt('$' + Copy(Hex, 5, 2), B) then Exit;
+
+    Color := $FF000000 or (Cardinal(R) shl 16) or (Cardinal(G) shl 8) or Cardinal(B);
+    Result := True;
+    Exit;
+  end;
+
+  Result := True;
+  V := V.ToLower;
+  if V = 'red' then Color := $FFE81123
+  else if V = 'green' then Color := $FF107C10
+  else if V = 'blue' then Color := $FF0078D7
+  else if V = 'yellow' then Color := $FFFFD700
+  else if V = 'orange' then Color := $FFFF8C00
+  else if V = 'purple' then Color := $FF8764B8
+  else if V = 'pink' then Color := $FFE3008C
+  else if V = 'brown' then Color := $FF8B4513
+  else if V = 'black' then Color := $FF000000
+  else if V = 'white' then Color := $FFFFFFFF
+  else if (V = 'gray') or (V = 'grey') then Color := $FF808080
+  else if V = 'cyan' then Color := $FF00B7C3
+  else if V = 'magenta' then Color := $FFEC008C
+  else
+    Result := False;
+end;
+
+// [09.23.2026] Added
+class function TInlineHtmlColorTag.TryParseOpenColor(const Tag: string; out Color: TLayoutColor): Boolean;
+var
+  Name, ColorValue, StyleValue: string;
+begin
+  Result := False;
+  if Tag.Trim.StartsWith('</') then
+    Exit;
+
+  Name := TagName(Tag);
+  if (Name.ToLower <> 'span') and (Name.ToLower <> 'font') then
+    Exit;
+
+  if Name.ToLower = 'font' then
+  begin
+    ColorValue := ExtractAttribute(Tag, 'color');
+    if (ColorValue <> '') and TryColorFromCss(ColorValue, Color) then
+      Exit(True);
+  end;
+
+  StyleValue := ExtractAttribute(Tag, 'style');
+  if StyleValue = '' then
+    Exit;
+
+  ColorValue := ExtractStyleProperty(StyleValue, 'color');
+  if ColorValue = '' then
+    Exit;
+
+  Result := TryColorFromCss(ColorValue, Color);
+end;
+
+// [09.23.2026] Added <span style="background-color:...">, <font style="background-color:...">
+class function TInlineHtmlColorTag.TryParseOpenBackground(const Tag: string; out Color: TLayoutColor): Boolean;
+var
+  Name, StyleValue, ColorValue: string;
+begin
+  Result := False;
+  if Tag.Trim.StartsWith('</') then
+    Exit;
+
+  Name := TagName(Tag);
+  if (Name <> 'span') and (Name <> 'font') then
+    Exit;
+
+  StyleValue := ExtractAttribute(Tag, 'style');
+  if StyleValue = '' then
+    Exit;
+
+  ColorValue := ExtractStyleProperty(StyleValue, 'background-color');
+  if ColorValue = '' then
+    Exit;
+
+  Result := TryColorFromCss(ColorValue, Color);
+end;
+
+// [09.23.2026] Added : <u>Text</u>
+class function TInlineHtmlColorTag.IsUnderlineOpenTag(const Tag: string): Boolean;
+begin
+  Result := (not Tag.Trim.StartsWith('</')) and (TagName(Tag) = 'u');
 end;
 
 end.

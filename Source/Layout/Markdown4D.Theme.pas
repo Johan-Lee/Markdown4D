@@ -187,6 +187,8 @@ type
       FChartTextColor: TLayoutColor;
       FChartPalette: TArray<TLayoutColor>;
       FTokenColors: TTokenColorArray;
+      FHighlightBackgroundColor: TLayoutColor; // [09.23.2026] Added
+      FHighlightTextColor: TLayoutColor; // [09.23.2026] Added
     class function PaletteFrom(const Colors: array of TLayoutColor): TArray<TLayoutColor>;
     function HeadingFontsToJson: TJSONArray;
     class function SpacingsToJson(const Spacings: THeadingSpacingArray): TJSONArray;
@@ -272,6 +274,8 @@ type
     property ChartTextColor: TLayoutColor read FChartTextColor write FChartTextColor;
     property ChartPalette: TArray<TLayoutColor> read FChartPalette write FChartPalette;
     property TokenColors[const Kind: TSyntaxTokenKind]: TLayoutColor read GetTokenColor write SetTokenColor;
+    property HighlightBackgroundColor: TLayoutColor read FHighlightBackgroundColor write FHighlightBackgroundColor; // [09.23.2026] Added
+    property HighlightTextColor: TLayoutColor read FHighlightTextColor write FHighlightTextColor; // [09.23.2026] Added
   end;
 
 implementation
@@ -298,6 +302,8 @@ class function TMarkdownTheme.CreateDark: TMarkdownTheme;
 begin
   Result := TMarkdownTheme.Create;
 
+  Result.FHighlightBackgroundColor := $FF6B5B10; // [09.23.2026] Added - Dark gold
+  Result.FHighlightTextColor := $FFFFF3A0; // [09.23.2026] Added - Light yellow
   Result.FTextColor := DarkInkColor;
   Result.FBackgroundColor := DarkBackgroundColor;
   Result.FLinkColor := $FF4493F8;
@@ -324,6 +330,8 @@ begin
   FBaseFont := TMarkdownFontStyle.Create(DefaultTextFamilyName, DefaultBaseFontSize);
   FCodeFont := TMarkdownFontStyle.Create(DefaultCodeFamilyName, DefaultBaseFontSize);
   FMathFont := TMarkdownFontStyle.Create(DefaultMathFamilyName, DefaultBaseFontSize);
+  FHighlightBackgroundColor := $FFFFF3A0; // [09.23.2026] Added - Light yellow
+  FHighlightTextColor := LightInkColor; // [09.23.2026] Added - Legacy color
 
   for var Level := MinHeadingLevel to MaxHeadingLevel do
   begin

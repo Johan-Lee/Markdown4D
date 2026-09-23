@@ -80,11 +80,13 @@ type
       FDragPoint: TPoint;
       FAutoScrollTimer: TTimer;
       FPreview: TMarkdownViewer;
+      FPreviewUserScroll: TNotifyEvent; // [09.23.2026] Added - Preserve the existing OnScroll handler
       FPreviewTimer: TTimer;
       FPreviewDirty: Boolean;
       FUpdatingPreview: Boolean;
       FSync: TMarkdownEditorSync;
       FSyncScroll: Boolean;
+      FReadOnly: Boolean; // [09.23.2026] Added
       FSyncing: Boolean;
       FSyncedLayoutCount: Integer;
       FRowModel: TMarkdownEditorRows;
@@ -255,6 +257,7 @@ type
     // SyncScroll is on, two-way scroll synchronisation between the panes.
     property Preview: TMarkdownViewer read FPreview write SetPreview;
     property SyncScroll: Boolean read FSyncScroll write FSyncScroll default True;
+    property ReadOnly: Boolean read FReadOnly write FReadOnly default False; // [09.23.2026] Added
     property Align;
     property Anchors;
     property Constraints;
@@ -475,7 +478,9 @@ begin
   var Ours: TNotifyEvent := HandleInternalPreviewScroll;
   if (TMethod(FPreview.OnScroll).Code = TMethod(Ours).Code) and
      (TMethod(FPreview.OnScroll).Data = TMethod(Ours).Data) then
-    FPreview.OnScroll := nil;
+    FPreview.OnScroll := FPreviewUserScroll; // [09.23.2026] Changed - Restore the original handler instead of using `nil`
+
+  FPreviewUserScroll := nil;
 end;
 
 procedure TMarkdownEditor.AttachPreview(const Viewer: TMarkdownViewer);
@@ -490,6 +495,7 @@ begin
   if FPreview <> nil then
   begin
     FPreview.FreeNotification(Self);
+    FPreviewUserScroll := FPreview.OnScroll; // [09.23.2026] Added
     FPreview.OnScroll := HandleInternalPreviewScroll;
   end;
 
@@ -547,12 +553,20 @@ begin
   // Re-rendering the preview parks it back at the top, which would yank the
   // reader away on every keystroke. Linked panes follow the editor; an unlinked
   // preview keeps the offset it had.
-  if FSyncScroll then
-  begin
-    SyncPreviewToEditor;
-    Exit;
-  end;
 
+  // [09.23.2026] Removed
+  //if FSyncScroll then
+  //begin
+  //  SyncPreviewToEditor;
+  //  Exit;
+  //end;
+
+  // When the document is re-rendered, the preview returns to the top,
+  // so we restore it to the exact position it was in just before editing.
+  // Since synchronization caused by actual scrolling (wheel, scrollbar, or
+  // cursor movement) is already handled separately by `SetScrollOffset` and
+  // HandleInternalPreviewScroll, all we need to do here is restore the
+  // position to exactly where it was before editing.
   FPreview.ScrollOffset := PreviousOffset;
 end;
 
@@ -591,6 +605,9 @@ begin
   finally
     FSyncing := False;
   end;
+
+  if Assigned(FPreviewUserScroll) then
+    FPreviewUserScroll(Sender); // [09.23.2026] Added - Viewer's OnPreviewScroll method at runtime
 end;
 
 procedure TMarkdownEditor.SyncPreviewToEditor;
@@ -1052,7 +1069,7 @@ function TMarkdownEditor.BeginSelectionDrag(const X, Y, Offset: Integer): Boolea
 begin
   // A press inside the selection may become a drag, so the selection is left
   // untouched until the mouse either moves far enough or is released in place.
-  Result := FModel.OffsetInSelection(Offset);
+  Result := (not FReadOnly) and FModel.OffsetInSelection(Offset); // [09.23.2026] Changed
   if not Result then
     Exit;
 
@@ -1110,7 +1127,7 @@ begin
 
   FContextMenu.Items.Clear;
 
-  for var Item in TMarkdownEditorContextMenu.Build(FModel, ClipboardHasText) do
+  for var Item in TMarkdownEditorContextMenu.Build(FModel, ClipboardHasText, FReadOnly) do // [09.23.2026] Changed - FReadOnly
   begin
     if Item.StartsGroup and (FContextMenu.Items.Count > 0) then
     begin
@@ -1135,7 +1152,7 @@ procedure TMarkdownEditor.HandleContextItemClick(Sender: TObject);
 begin
   const Command = TEditorContextCommand((Sender as TMenuItem).Tag);
 
-  if TMarkdownEditorContextMenu.Execute(FModel, Command) then
+  if TMarkdownEditorContextMenu.Execute(FModel, Command, FReadOnly) then // [09.23.2026] Changed - FReadOnly
   begin
     RefreshAfterEdit;
     Exit;
@@ -1486,6 +1503,9 @@ end;
 
 procedure TMarkdownEditor.CutToClipboard;
 begin
+  if FReadOnly then // [09.23.2026] Added
+    Exit;
+
   if not FModel.HasSelection then
     Exit;
 
@@ -1498,6 +1518,9 @@ end;
 
 procedure TMarkdownEditor.PasteFromClipboard;
 begin
+  if FReadOnly then // [09.23.2026] Added
+    Exit;
+
   var Pasted: string;
   if not TryReadClipboard(Pasted) then
     Exit;
@@ -1740,6 +1763,10 @@ procedure TMarkdownEditor.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
 
+  const Stroke = TMarkdownEditorKeymap.Resolve(Key, Shift);  // [09.23.2026] Added
+  if FReadOnly and TMarkdownEditorKeyDispatch.IsEditAction(Stroke.Action) then
+    Exit;
+
   if not ApplyKeyStroke(TMarkdownEditorKeymap.Resolve(Key, Shift)) then
     Exit;
 
@@ -1805,6 +1832,9 @@ end;
 procedure TMarkdownEditor.KeyPress(var Key: Char);
 begin
   inherited KeyPress(Key);
+
+  if FReadOnly then // [09.23.2026] Added
+    Exit;
 
   if (Key < ' ') or (Key = DeleteChar) then
     Exit;
