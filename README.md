@@ -1,5 +1,24 @@
-# 수정/추가 내역
+# Customized History / 변경 이력
 **Based version : 2.3.0**
+
+**[English]**
+
+- Support for highlighters (==).
+- Support for text and background colors using HTML tags.
+- Support for underlining text.
+- Added `TMarkdownEditor.ReadOnly` property.
+- Added `TMarkdownViewer(VCL).ScrollPosition` property.
+- Added `TMarkdownViewer(VCL).ScrollRange` property.
+- Enhanced `TMarkdownViewer(VCL).OnScroll`
+  - Modified so that the `ScrollRange` value is reset when text changes.
+  - Fixed so that the `OnScroll` event is called bypassing the `TMarkdownEditor.Preview` even when it is connected.
+- Added `TMarkdownViewer(VCL).TouchScrollMode` property.
+  - `TouchScrollMode` := `False` // Select text block (Default).\
+    `TouchScrollMode` := `True` // Implement text scrolling via mouse drag on touch monitors that do not support gestures.
+- Fixed an issue where the `ScrollPosition` was reset to 0 when the content of `TMarkdownEditor(VCL).Text` was changed.
+  - While setting `SyncScroll` to `False` resolves this, the scroll position of the `MarkdownViewer` (which is used for previewing) is not synchronized.
+
+**[Korean / 한국어]**
 
 - 형광펜(==) 지원
 - html 태그를 이용한 텍스트의 색상과 배경 색상 지원
@@ -13,10 +32,10 @@
 - TMarkdownViewer(VCL).TouchScrollMode 속성 추가
   - TouchScrollMode := False // 본문 텍스트 선택(기본값)\
     TouchScrollMode := True // Gesture가 지원되지 않는 터치 모니터에서 Mouse Drag로 Text Scroll 구현
-- TMarkdownEditor(VCL).Text의 내용을 변경할 경우, ScrollPosition이 0 으로 초기화 되는 문제 수정
-  - SyncScroll을 False로 설정하면 되지만 Preview 대상인 MarkdownViwer의 스크롤 위치가 동기화 되지 않음
+- TMarkdownEditor(VCL).Text의 내용을 변경할 경우, `ScrollPosition`이 0 으로 초기화 되는 문제 수정
+  - `SyncScroll`을 `False`로 설정하면 되지만 `Preview` 대상인 `MarkdownViwer`의 스크롤 위치가 동기화 되지 않음
 
-# 사용 예시
+# Usage / 사용 예시
 
 ```html
 ==형광펜==
